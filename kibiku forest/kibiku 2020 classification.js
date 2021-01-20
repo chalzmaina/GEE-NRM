@@ -1,19 +1,4 @@
-var trainingpoints = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/NGONG_FORESTS_TRAINING_DATA"),
-    dagorettiforest = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/DagorretiForest"),
-    olooluaforest = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/OlooluaForest"),
-    ngonghillsforest = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/NgongHillsForest"),
-    embakassiforest = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/EmbakasiForest"),
-    ngongroadforest = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/NgongRdForest"),
-    Settlment = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/Settlement_shp"),
-    Ngong_Hills_Kibiko_Boundary = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/Ngong_Hills_Kibiko_Boundary"),
-    Ngong_Hills_Kibiko_Cropland_trg = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/Ngong_Hills_Kibiko_Cropland_trg"),
-    Ngong_Hills_Kibiko_Natural_Forest_trg = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/Ngong_Hills_Kibiko_Natural_Forest_trg"),
-    Ngong_Hills_Kibiko_OpenGrassland_trg = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/Ngong_Hills_Kibiko_OpenGrassland_trg"),
-    Ngong_Hills_Kibiko_bare_ground_trg = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/Ngong_Hills_Kibiko_bare_ground_trg"),
-    Ngong_Hills_Kibiko_plantation_Forest_trg = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/Ngong_Hills_Kibiko_plantation_Forest_trg"),
-    Ngong_Hills_Kibiko_settlement_trg = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/Ngong_Hills_Kibiko_settlement_trg"),
-    Ngong_Hills_Kibiko_Wooded_Grassland_trg = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/Ngong_Hills_Kibiko_Wooded_Grassland_trg"),
-    Natural_Forest_2 = /* color: #ff0a5b */ee.FeatureCollection(
+var Natural_Forest_2 = /* color: #ff0a5b */ee.FeatureCollection(
         [ee.Feature(
             ee.Geometry.Polygon(
                 [[[36.64964271414827, -1.454093425449365],
@@ -1024,10 +1009,9 @@ var trainingpoints = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/NGONG_
               "LC2": 2,
               "system:index": "26"
             })]),
-    Points = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/Ngong_merged"),
+			//Import from the 'Kibiku forest' shape file
     kibiku = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/Kibiku_Forest_Boundary_new"),
     sentinel2 = ee.ImageCollection("COPERNICUS/S2"),
-    kibikupoints = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/Kibiku_points"),
     natural_val = 
     /* color: #d63000 */
     /* shown: false */
@@ -1633,7 +1617,12 @@ var trainingpoints = ee.FeatureCollection("projects/ee-nrm-gee4geo/assets/NGONG_
               "LC2": 2,
               "system:index": "4"
             })]);
-// Define Kibiku forest area of interest from the Kibiku forest shapefile.
+			
+////////////////////////////////////////////////////////////////////
+//__________________1)Image Set up section_____________________  //
+///////////////////////////////////////////////////////////////////
+
+/*Define area of interest from the Kibiku forest shape file.*/
 var AOIs = kibiku;
 
 //Define cloud masking function for Sentinel-2
@@ -1668,13 +1657,33 @@ Map.addLayer(clipped,{min: 0.0,max: 0.3,bands:['B4','B3','B2']},'Forests RGB ima
 //Visualize the training points
 Map.addLayer(Points,{color:'red'});
 
-//Define the name for the property to hold the classification label
+
+
+//////////////////////////////////////////////////////////////////////////////////
+//2) _______________________CLASSIFICATION SECTION______________________________//
+//////////////////////////////////////////////////////////////////////////////////
+
+/* The following section defines the code block for supervised classification of the 
+    kibiku area imagery to the land cover classes.
+    The classes are defined as follows with their numeric labels as follows below:
+    
+    0: Natural Forest
+    1: Plantation Forest
+    2: Bare Land
+    3: Crop Land
+    4: Open Grass Land
+    5: Wooded Grass Land
+    6: Settlement */
+    
+// The name for the property of the feature collection to be used for classification will be 'LC2'
 var clasName2020 = 'LC2';
 
 //Define the input bands for classification
 var bands = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B11', 'B12'];
 
-//merge the geometry features from where the sample data for training will be taken
+/* Below training features are picked using the geometry drawing tools in the map display
+    shown below the code editor. They are drawn around the identified land cover on the source image,
+    and labelled using the numeric labels shown above, then merged into the training features*/
 var training_points = (Natural_Forest_2).merge(Plantion_Forest_2).merge(Bareland_2).merge(crop_land_2).merge(Open_Grassland_2).merge(Wooded_Grassland_2).merge(Settlement_2);
 print('#2020_Classification_new', training_points);
 
@@ -1714,6 +1723,12 @@ var classified2020 = clipped.select(bands).classify(trained2020);
 Map.addLayer(classified2020,
 {min: 0, max: 5, palette: ['green','blue','brown','gray','yellow','black']},'Classification2020_new');
 
+
+////////////////////////////////////////////////////////////////////////////////////////////
+//_______________3) Legend (Classified Map Key) Definition Section________________________//
+////////////////////////////////////////////////////////////////////////////////////////////
+
+//Define a GEE user interface panel on which to draw the legend.
 var legend = ui.Panel({
   style: {
     position: 'bottom-right',
@@ -1774,6 +1789,11 @@ scale: 20,
 //maxPixels: 1e10,
 region: AOIs,
 });
+
+
+///////////////////////////////////////////////////////////////////////////////
+//____________________4)Land Cover Areas calculation_________________________//
+///////////////////////////////////////////////////////////////////////////////
 var areaImage2020 = ee.Image.pixelArea().addBands(classified2020).divide(10000);
  
 var areas2020 = areaImage2020.reduceRegion({
@@ -1789,20 +1809,25 @@ var areas2020 = areaImage2020.reduceRegion({
 print(areas2020, 'Hectares');
 
 
-//Validation of the classified image
 
-var validation_valNames = sample.filter(ee.Filter.gte('random', split));
+//////////////////////////////////////////////////////////////////////////////////
+//____________________5)ACCURACY ASSESSMENT SECTION_____________________________//
+//////////////////////////////////////////////////////////////////////////////////
 
-var val_Points = validation_valNames;
+//Initialize the validation points
+//They are picked from the raw image using the geometry drawing
+var val_Points = (natural_val).merge(plantation_val).merge(bareland_val).merge(cropland_val).merge(opengrassland_val).merge(woodengrassland_val);
+
+//Validation data is sampled from the classified image with regard
+//to the validation points.
 var validation = classified2020.sampleRegions({
-  collection: (natural_val).merge(plantation_val).merge(bareland_val).merge(cropland_val).merge(opengrassland_val).merge(woodengrassland_val),
+  //The validation features from which validation data is sampled
+  collection: val_Points,
+  //property name in the validation features that contain the classification label
   properties: ['LC2'],
   scale: 10
 });
 print('Validation', validation);
-
-
-
 
 // compare the landcover of your validation data against the classification results
 
